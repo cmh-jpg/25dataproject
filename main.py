@@ -5,14 +5,26 @@ import plotly.express as px
 # CSV 파일 로드
 @st.cache_data
 def load_data():
-    df = pd.read_csv("202505_202505_연령별인구현황_월간.csv", encoding='cp949')
+    # 적절한 인코딩 및 구분자 자동 감지 시도
+    df = pd.read_csv("202505_202505_연령별인구현황_월간.csv", encoding='cp949', skiprows=1)
     return df
 
 df = load_data()
 
-# 데이터 전처리
+# 데이터 구조 확인
+if df.shape[1] < 3:
+    st.error("CSV 파일 형식이 예상과 다릅니다. 열 구조를 확인해주세요.")
+    st.stop()
+
+# 열 이름 할당 (수동 지정 필요할 수 있음)
 df = df.rename(columns={df.columns[0]: "지역", df.columns[1]: "연령대", df.columns[2]: "총인구수"})
-df['총인구수'] = df['총인구수'].str.replace(',', '').astype(int)
+
+# 문자열 숫자 처리
+df['총인구수'] = df['총인구수'].astype(str).str.replace(',', '', regex=False)
+df['총인구수'] = pd.to_numeric(df['총인구수'], errors='coerce')
+
+# 결측치 제거
+df = df.dropna(subset=['총인구수'])
 
 # Streamlit UI
 st.title("📊 지역별 연령 인구 구조 시각화")
