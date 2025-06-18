@@ -2,44 +2,45 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 데이터 불러오기 함수
+# CSV 파일 불러오기
 @st.cache_data
 def load_data():
-    df = pd.read_csv("202505_202505_연령별인구현황_월간.csv", encoding="cp949", skiprows=3)
-    df = df.dropna(how='all', axis=1)  # 전부 NaN인 열 제거
-    df = df.rename(columns={df.columns[0]: "행정구역"})
-    df["행정구역"] = df["행정구역"].str.strip()
-    df = df[df["행정구역"].str.contains("합계") == False]  # "합계" 행 제거
-    df = df.reset_index(drop=True)
+    df = pd.read_csv("202505_202505_연령별인구현황_월간.csv", encoding='cp949')  # euc-kr 또는 cp949
     return df
 
-# 데이터 로드
 df = load_data()
 
-# UI: 지역 선택
-regions = df["행정구역"].unique()
-selected_region = st.selectbox("📍 지역을 선택하세요:", regions)
+# 데이터 확인
+st.title("연령별 인구 현황 시각화")
+st.write("원본 데이터 예시:")
+st.dataframe(df.head())
 
-# UI: 인구 유형 선택
-pop_type = st.radio("👥 인구 유형을 선택하세요:", ["계", "남자", "여자"])
+# 컬럼 확인 및 전처리
+st.subheader("데이터 전처리 및 시각화")
 
-# 해당 지역 데이터 필터링
-row = df[df["행정구역"] == selected_region].iloc[0]
+# 열 이름 보기
+st.write("열 이름:")
+st.write(df.columns.tolist())
 
-# 열 이름에서 연령대 추출
-age_columns = [col for col in df.columns if "세" in col and pop_type in col]
-ages = [col.split("_")[0] for col in age_columns]
-values = [int(str(row[col]).replace(",", "")) for col in age_columns]
+# 성별 및 연령별로 인구 피라미드 그리기
+if '행정기관' in df.columns and '연령(5세)' in df.columns and '총인구수 (명)' in df.columns:
+    df_filtered = df[df['행정기관'] == '전국']  # 전국 데이터만 보기
+    df_pivot = df_filtered.pivot_table(index='연령(5세)', columns='성별', values='총인구수 (명)', aggfunc='sum').fillna(0)
 
-# 시각화
-fig = px.bar(
-    x=values,
-    y=ages,
-    orientation="h",
-    labels={"x": "인구 수", "y": "연령대"},
-    title=f"{selected_region} - 연령대별 인구 ({pop_type})"
-)
-fig.update_layout(yaxis=dict(categoryorder='category ascending'))
+    # 남자는 음수로 변환해 인구 피라미드 형태 만들기
+    df_pivot['남자'] *= -1
 
-# 출력
-st.plotly_chart(fig, use_container_width=True)
+    # 인구 피라미드 그래프
+    fig = px.bar(
+        df_pivot,
+        x=['남자', '여자'],
+        y=df_pivot.index,
+        orientation='h',
+        title='성별 연령별 인구 피라미드 (전국)',
+        labels={'value': '인구수', 'index': '연령대'},
+        height=800
+    )
+    st.plotly_chart(fig)
+else:
+    st.error("필요한 열(예: '연령(5세)', '성별', '총인구수 (명)')이 데이터에 없습니다.")
+
